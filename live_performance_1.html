@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EKG Empire — Live Performance</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050608; --card: #0f1218; --dark: #0a0c10;
+  --green: #00ff88; --gold: #ffd700; --blue: #4fc3f7;
+  --red: #ff5555; --muted: #6b7280; --text: #e8eaf0;
+  --border: #1a1f2e; --mono: 'Space Mono', monospace;
+  --display: 'Syne', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; }
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none;
+  background-image: linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px);
+  background-size: 40px 40px; z-index:0;
+}
+
+.wrap { max-width:1100px; margin:0 auto; padding:24px 20px; position:relative; z-index:1; }
+
+/* HEADER */
+.header { text-align:center; margin-bottom:32px; }
+.header h1 { font-family:var(--display); font-size:2.2rem; font-weight:800; color:var(--green); letter-spacing:-0.02em; }
+.header p { color:var(--muted); font-size:0.72rem; letter-spacing:0.15em; margin-top:6px; }
+.live-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 14px; border:1px solid var(--green);
+  background:rgba(0,255,136,0.08); color:var(--green);
+  font-size:0.65rem; letter-spacing:0.2em; margin-top:10px;
+}
+.dot { width:6px; height:6px; background:var(--green); border-radius:50%; animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,255,136,0.4)} 50%{opacity:.8;box-shadow:0 0 0 6px rgba(0,255,136,0)} }
+
+/* METRICS GRID */
+.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+.metric-card {
+  background:var(--card); border:1px solid var(--border);
+  padding:16px; text-align:center; position:relative; overflow:hidden;
+}
+.metric-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg, var(--green), transparent);
+}
+.metric-label { font-size:0.6rem; letter-spacing:0.2em; color:var(--muted); text-transform:uppercase; margin-bottom:8px; }
+.metric-value { font-family:var(--display); font-size:1.6rem; font-weight:800; color:var(--green); }
+.metric-value.gold { color:var(--gold); }
+.metric-value.blue { color:var(--blue); }
+.metric-sub { font-size:0.62rem; color:var(--muted); margin-top:4px; }
+
+/* EQUITY CHART */
+.chart-wrap { background:var(--card); border:1px solid var(--border); padding:20px; margin-bottom:24px; }
+.chart-title { font-size:0.68rem; letter-spacing:0.2em; color:var(--green); margin-bottom:16px; text-transform:uppercase; }
+canvas { width:100% !important; }
+
+/* TRADES */
+.trades-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
+.trade-card { background:var(--card); border:1px solid var(--border); padding:20px; }
+.trade-card.active { border-color:rgba(0,255,136,0.3); background:linear-gradient(135deg, var(--card), rgba(0,255,136,0.03)); }
+.trade-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.trade-num { font-family:var(--display); font-size:1rem; font-weight:800; }
+.trade-badge { padding:3px 10px; font-size:0.6rem; letter-spacing:0.1em; border-radius:2px; }
+.badge-closed { background:rgba(0,255,136,0.1); color:var(--green); border:1px solid rgba(0,255,136,0.3); }
+.badge-active { background:rgba(255,215,0,0.1); color:var(--gold); border:1px solid rgba(255,215,0,0.3); }
+.trade-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--border); font-size:0.72rem; }
+.trade-row:last-child { border-bottom:none; }
+.trade-key { color:var(--muted); }
+.trade-val { color:var(--text); }
+.trade-val.green { color:var(--green); }
+.trade-val.gold { color:var(--gold); }
+
+/* LOG TABLE */
+.log-wrap { background:var(--card); border:1px solid var(--border); margin-bottom:24px; }
+.log-header { padding:14px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.log-title { font-size:0.68rem; letter-spacing:0.2em; color:var(--green); text-transform:uppercase; }
+.log-filter { display:flex; gap:8px; }
+.filter-btn {
+  padding:4px 12px; font-size:0.6rem; letter-spacing:0.1em;
+  background:var(--dark); border:1px solid var(--border);
+  color:var(--muted); cursor:pointer; font-family:var(--mono);
+  transition:all 0.2s;
+}
+.filter-btn.active, .filter-btn:hover { border-color:var(--green); color:var(--green); }
+.log-table { width:100%; border-collapse:collapse; }
+.log-table th {
+  padding:8px 12px; text-align:left; font-size:0.6rem;
+  letter-spacing:0.15em; color:var(--green); background:var(--dark);
+  border-bottom:1px solid var(--border); text-transform:uppercase;
+}
+.log-table td { padding:6px 12px; font-size:0.68rem; border-bottom:1px solid rgba(26,31,46,0.5); }
+.log-table tr:hover td { background:rgba(0,255,136,0.03); }
+.log-table tr:nth-child(even) td { background:rgba(255,255,255,0.01); }
+.tag { padding:2px 7px; font-size:0.58rem; border-radius:2px; letter-spacing:0.05em; }
+.tag-trend { background:rgba(255,215,0,0.12); color:var(--gold); }
+.tag-chop { background:rgba(79,195,247,0.12); color:var(--blue); }
+.tag-flat { background:rgba(107,114,128,0.15); color:var(--muted); }
+.tag-short { background:rgba(0,255,136,0.12); color:var(--green); }
+.tag-long { background:rgba(79,195,247,0.12); color:var(--blue); }
+.pnl-pos { color:var(--green); }
+.pnl-neg { color:var(--red); }
+.bal-val { color:var(--text); }
+
+/* FOOTER */
+.footer { text-align:center; padding:20px; border-top:1px solid var(--border); color:var(--muted); font-size:0.65rem; letter-spacing:0.1em; }
+.footer span { color:var(--green); }
+
+@media(max-width:700px) {
+  .metrics { grid-template-columns:repeat(2,1fr); }
+  .trades-grid { grid-template-columns:1fr; }
+  .log-filter { display:none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<div class="header">
+  <h1>EKG Empire</h1>
+  <p>SOVEREIGN DRL TRADING ENGINE — LIVE PERFORMANCE REPORT</p>
+  <div class="live-badge"><div class="dot"></div>LIVE SHADOW · V4.1 · V75 M15 · DERIV</div>
+</div>
+
+<!-- METRICS -->
+<div class="metrics">
+  <div class="metric-card">
+    <div class="metric-label">Starting Balance</div>
+    <div class="metric-value">$10,000</div>
+    <div class="metric-sub">March 4, 2026</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Current Balance</div>
+    <div class="metric-value">$10,920</div>
+    <div class="metric-sub">+$920.24 profit</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Total Return</div>
+    <div class="metric-value gold">+9.20%</div>
+    <div class="metric-sub">3 days live</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Peak PnL</div>
+    <div class="metric-value blue">+13.39%</div>
+    <div class="metric-sub">ADX 0.736 TREND</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Completed Trades</div>
+    <div class="metric-value">2</div>
+    <div class="metric-sub">Both profitable</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Best Trade</div>
+    <div class="metric-value gold">+8.45%</div>
+    <div class="metric-sub">48hr single trade</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Peak ADX</div>
+    <div class="metric-value">0.736</div>
+    <div class="metric-sub">Strong trend signal</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Agent Status</div>
+    <div class="metric-value blue">FLAT</div>
+    <div class="metric-sub">Hunting next setup</div>
+  </div>
+</div>
+
+<!-- EQUITY CHART -->
+<div class="chart-wrap">
+  <div class="chart-title">// Equity Curve — Live Track Record</div>
+  <canvas id="equityChart" height="200"></canvas>
+</div>
+
+<!-- TRADES -->
+<div class="trades-grid">
+  <div class="trade-card">
+    <div class="trade-header">
+      <div class="trade-num">Trade #1</div>
+      <div class="trade-badge badge-closed">CLOSED</div>
+    </div>
+    <div class="trade-row"><span class="trade-key">Direction</span><span class="trade-val green">SHORT 0.5</span></div>
+    <div class="trade-row"><span class="trade-key">Entry</span><span class="trade-val">36,022 · March 4, 03:15</span></div>
+    <div class="trade-row"><span class="trade-key">Close</span><span class="trade-val">32,980 · March 5, 22:30</span></div>
+    <div class="trade-row"><span class="trade-key">Duration</span><span class="trade-val">~43 hours</span></div>
+    <div class="trade-row"><span class="trade-key">Move Captured</span><span class="trade-val green">3,042 points</span></div>
+    <div class="trade-row"><span class="trade-key">Peak PnL</span><span class="trade-val gold">+13.39%</span></div>
+    <div class="trade-row"><span class="trade-key">Closed PnL</span><span class="trade-val green">+8.446%</span></div>
+    <div class="trade-row"><span class="trade-key">Balance After</span><span class="trade-val green">$10,844.59</span></div>
+    <div class="trade-row"><span class="trade-key">Peak ADX</span><span class="trade-val gold">0.736 TREND</span></div>
+  </div>
+  <div class="trade-card">
+    <div class="trade-header">
+      <div class="trade-num">Trade #2</div>
+      <div class="trade-badge badge-closed">CLOSED</div>
+    </div>
+    <div class="trade-row"><span class="trade-key">Direction</span><span class="trade-val green">SHORT 0.5</span></div>
+    <div class="trade-row"><span class="trade-key">Entry</span><span class="trade-val">33,247 · March 6, 02:37</span></div>
+    <div class="trade-row"><span class="trade-key">Close</span><span class="trade-val">33,013 · March 6, 06:15</span></div>
+    <div class="trade-row"><span class="trade-key">Duration</span><span class="trade-val">~3.5 hours</span></div>
+    <div class="trade-row"><span class="trade-key">Move Captured</span><span class="trade-val green">234 points</span></div>
+    <div class="trade-row"><span class="trade-key">Peak PnL</span><span class="trade-val gold">+1.654%</span></div>
+    <div class="trade-row"><span class="trade-key">Closed PnL</span><span class="trade-val green">+0.704%</span></div>
+    <div class="trade-row"><span class="trade-key">Balance After</span><span class="trade-val green">$10,920.24</span></div>
+    <div class="trade-row"><span class="trade-key">Regime</span><span class="trade-val blue">CHOP (0.201)</span></div>
+  </div>
+</div>
+
+<!-- LOG TABLE -->
+<div class="log-wrap">
+  <div class="log-header">
+    <div class="log-title">// Full Shadow Log — Key Candles</div>
+    <div class="log-filter">
+      <button class="filter-btn active" onclick="filterLog('all',this)">ALL</button>
+      <button class="filter-btn" onclick="filterLog('trend',this)">TREND</button>
+      <button class="filter-btn" onclick="filterLog('trade',this)">TRADES</button>
+    </div>
+  </div>
+  <div style="overflow-x:auto;">
+  <table class="log-table" id="logTable">
+    <thead>
+      <tr>
+        <th>Time</th><th>Price</th><th>Action</th><th>PnL</th><th>Balance</th><th>Regime</th>
+      </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
+  </table>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div>Built by <span>Olaoluwa Emmanuel Bello</span> · KwabenaBellz · Lagos, Nigeria → Canada 🇨🇦</div>
+  <div style="margin-top:6px;"><span>github.com/KwabenaBellz/EKG-Empire</span> · KwabenaBellz.github.io</div>
+  <div style="margin-top:6px;font-style:italic;color:#444">"The machine carries the family name. It fights every day so we don't have to."</div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const logData = [
+  ["22:44","36217.69","FLAT","FLAT 0.0","+0.000%","$10,000.00","CHOP (0.093)"],
+  ["03:15","36021.97","SELL 0.5","SHORT 0.5","+0.000%","$10,000.00","CHOP (0.138)"],
+  ["03:30","36091.54","SELL 0.5","SHORT 0.5","-0.193%","$9,990.34","CHOP (0.138)"],
+  ["04:15","35715.30","SELL 0.5","SHORT 0.5","+0.851%","$10,042.57","CHOP (0.149)"],
+  ["04:45","35450.42","SELL 0.5","SHORT 0.5","+1.587%","$10,079.33","TREND (0.280)"],
+  ["05:00","35407.81","SELL 0.5","SHORT 0.5","+1.705%","$10,085.25","TREND (0.313)"],
+  ["07:15","35363.80","SELL 0.5","SHORT 0.5","+1.827%","$10,091.36","TREND (0.260)"],
+  ["12:15","35090.37","SELL 0.5","SHORT 0.5","+2.586%","$10,129.31","CHOP (0.203)"],
+  ["20:06","34770.18","SELL 0.5","SHORT 0.5","+3.475%","$10,173.75","TREND (0.457)"],
+  ["20:45","34502.90","SELL 0.5","SHORT 0.5","+4.217%","$10,210.85","TREND (0.553)"],
+  ["21:00","34418.12","SELL 0.5","SHORT 0.5","+4.452%","$10,222.62","TREND (0.596)"],
+  ["21:30","34345.28","SELL 0.5","SHORT 0.5","+4.655%","$10,232.73","TREND (0.591)"],
+  ["21:45","34425.87","SELL 0.5","SHORT 0.5","+4.431%","$10,221.54","TREND (0.596)"],
+  ["09:45","32744.39","SELL 0.5","SHORT 0.5","+9.099%","$10,454.94","TREND (0.723)"],
+  ["11:00","32340.65","SELL 0.5","SHORT 0.5","+10.220%","$10,510.98","TREND (0.736)"],
+  ["15:00","32022.34","SELL 0.5","SHORT 0.5","+11.103%","$10,555.17","TREND (0.438)"],
+  ["17:30","31335.69","SELL 0.5","SHORT 0.5","+13.009%","$10,650.47","TREND (0.641)"],
+  ["17:45","31199.32","SELL 0.5","SHORT 0.5","+13.388%","$10,669.40","TREND (0.679)"],
+  ["16:50","31429.97","SELL 0.5","SHORT 0.5","+12.748%","$10,637.39","TREND (0.622)"],
+  ["22:30","32979.61","FLAT","FLAT 0.0","+8.446%","$10,844.59","TREND (0.541)"],
+  ["22:45","33008.66","FLAT","FLAT 0.0","+0.000%","$10,844.59","TREND (0.562)"],
+  ["23:15","33298.59","FLAT","FLAT 0.0","+0.000%","$10,844.59","TREND (0.652)"],
+  ["00:15","33214.43","BUY 0.5","LONG 0.5","+0.000%","$10,844.59","TREND (0.591)"],
+  ["00:30","33200.43","FLAT","FLAT 0.0","-0.042%","$10,840.02","TREND (0.482)"],
+  ["01:00","33486.56","BUY 0.5","LONG 0.5","+0.000%","$10,840.02","TREND (0.574)"],
+  ["01:15","33498.60","FLAT","FLAT 0.0","+0.036%","$10,843.92","TREND (0.580)"],
+  ["02:37","33246.76","SELL 0.5","SHORT 0.5","+0.000%","$10,843.92","CHOP (0.201)"],
+  ["03:15","33047.83","SELL 0.5","SHORT 0.5","+0.598%","$10,876.36","CHOP (0.095)"],
+  ["04:15","33027.80","SELL 0.5","SHORT 0.5","+0.659%","$10,879.63","CHOP (0.238)"],
+  ["05:30","32971.32","SELL 0.5","SHORT 0.5","+0.828%","$10,888.84","CHOP (0.098)"],
+  ["06:00","32696.79","SELL 0.5","SHORT 0.5","+1.654%","$10,933.61","CHOP (0.114)"],
+  ["06:15","33012.77","FLAT","FLAT 0.0","+0.704%","$10,920.24","CHOP (0.069)"],
+  ["07:00","33084.58","FLAT","FLAT 0.0","+0.000%","$10,920.24","CHOP (0.019)"],
+  ["09:00","33131.65","FLAT","FLAT 0.0","+0.000%","$10,920.24","CHOP (0.057)"],
+];
+
+// Equity chart data
+const equityPoints = [
+  10000,10000,9990,10043,10079,10085,10091,10129,
+  10174,10211,10223,10233,10222,10455,10511,10555,
+  10650,10669,10637,10845,10845,10845,10845,10840,
+  10844,10844,10844,10876,10880,10889,10934,10920,10920,10920
+];
+
+const labels = logData.map(r => r[0]);
+
+// Chart
+const ctx = document.getElementById('equityChart').getContext('2d');
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [{
+      data: equityPoints,
+      borderColor: '#00ff88',
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      pointHoverBackgroundColor: '#00ff88',
+      fill: true,
+      backgroundColor: (ctx) => {
+        const g = ctx.chart.ctx.createLinearGradient(0,0,0,300);
+        g.addColorStop(0, 'rgba(0,255,136,0.15)');
+        g.addColorStop(1, 'rgba(0,255,136,0)');
+        return g;
+      },
+      tension: 0.3
+    },{
+      data: Array(equityPoints.length).fill(10000),
+      borderColor: 'rgba(255,85,85,0.4)',
+      borderWidth: 1,
+      borderDash: [4,4],
+      pointRadius: 0,
+      fill: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0f1218',
+        borderColor: '#1a1f2e',
+        borderWidth: 1,
+        titleColor: '#00ff88',
+        bodyColor: '#e8eaf0',
+        callbacks: {
+          label: ctx => `  Balance: $${ctx.parsed.y.toLocaleString('en-US',{minimumFractionDigits:2})}`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(26,31,46,0.5)' },
+        ticks: { color: '#6b7280', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 12 }
+      },
+      y: {
+        grid: { color: 'rgba(26,31,46,0.5)' },
+        ticks: {
+          color: '#6b7280', font: { family: 'Space Mono', size: 9 },
+          callback: v => '$' + v.toLocaleString()
+        }
+      }
+    }
+  }
+});
+
+// Populate log
+function buildLog(filter) {
+  const tbody = document.getElementById('logBody');
+  tbody.innerHTML = '';
+  logData.forEach(row => {
+    const [time,price,action,pos,pnl,bal,regime] = row;
+    const isTrend = regime.includes('TREND');
+    const isTrade = !action.includes('FLAT');
+    if (filter === 'trend' && !isTrend) return;
+    if (filter === 'trade' && !isTrade) return;
+
+    const actionClass = action.includes('SELL') ? 'tag-short' :
+                        action.includes('BUY') ? 'tag-long' : 'tag-flat';
+    const regimeClass = isTrend ? 'tag-trend' : 'tag-chop';
+    const pnlClass = pnl.startsWith('-') ? 'pnl-neg' : 'pnl-pos';
+
+    tbody.innerHTML += `<tr>
+      <td style="color:var(--muted)">${time}</td>
+      <td>${parseFloat(price).toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+      <td><span class="tag ${actionClass}">${action}</span></td>
+      <td class="${pnlClass}">${pnl}</td>
+      <td style="color:var(--green)">${bal}</td>
+      <td><span class="tag ${regimeClass}">${regime}</span></td>
+    </tr>`;
+  });
+}
+
+function filterLog(type, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  buildLog(type);
+}
+
+buildLog('all');
+</script>
+</body>
+</html>
